@@ -90,6 +90,7 @@ async function unlock(raw){
     const key = await deriveKey(r.pw);
     let html = await r.blob.text();
     const refs=[...new Set([...html.matchAll(/assets\/[^"'()\s]+/g)].map(m=>m[0]))];
+    let done=0;
     for(const rel of refs){
       try{
         const blob=await fetchEnc(key,rel);
@@ -98,10 +99,13 @@ async function unlock(raw){
         html=html.split("'"+rel+"'").join("'"+url+"'");
         html=html.split('url('+rel+')').join('url('+url+')');
       }catch(e){ console.warn('skip',rel,e); }
+      done++;
+      msg.className='hint'; msg.textContent='在解了… '+done+'/'+refs.length;
     }
     document.getElementById('lock').style.display='none';
     const stage=document.getElementById('stage'); stage.style.display='flex';
-    document.getElementById('frame').srcdoc = html;
+    const frame=document.getElementById('frame');
+    frame.src = URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));
   }catch(e){
     msg.className='err'; msg.textContent='出了点问题：'+(e && e.message ? e.message : e); go.disabled=false;
   }

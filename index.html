@@ -39,8 +39,8 @@ async function deriveKey(pw){
 }
 async function decryptBlob(key, buf){
   const iv = buf.slice(0,12);
-  const tag = buf.slice(buf.length-16);
-  const ct = buf.slice(12, buf.length-16);
+  const tag = buf.slice(buf.byteLength-16);
+  const ct = buf.slice(12, buf.byteLength-16);
   // WebCrypto 的 AES-GCM 要求 ciphertext || tag 拼在一起传
   const merged = new Uint8Array(ct.byteLength + 16);
   merged.set(new Uint8Array(ct), 0);

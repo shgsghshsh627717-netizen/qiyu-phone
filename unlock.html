@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>祁煜的手机 2026</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0b0d16;color:#e8ecf5;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+#lock{width:100%;max-width:340px;text-align:center}
+#lock h1{font-size:19px;font-weight:600;letter-spacing:.5px;margin-bottom:6px}
+#lock p{font-size:13px;color:#8b93a7;line-height:1.7;margin-bottom:22px}
+#pw{width:100%;padding:13px 14px;border-radius:12px;border:1px solid #2a3040;background:#141826;color:#e8ecf5;font-size:16px;text-align:center;letter-spacing:2px;outline:none}
+#pw:focus{border-color:#4f7bcf}
+#go{width:100%;margin-top:12px;padding:13px;border-radius:12px;border:0;background:linear-gradient(135deg,#4f7bcf,#2d5aa8);color:#fff;font-size:15px;font-weight:600;cursor:pointer}
+#go:disabled{opacity:.5}
+#msg{margin-top:14px;font-size:13px;min-height:18px}
+#stage{display:none;width:100%;justify-content:center}
+iframe{border:0;width:390px;height:844px;max-height:94vh;border-radius:38px;box-shadow:0 0 50px rgba(79,172,254,.28);background:#000}
+.ok{color:#7fd18a}.err{color:#e28b8b}
+</style>
+</head>
+<body>
+<div id="lock">
+  <h1>祁煜的手机 2026</h1>
+  <p>只有你能打开。<br>把口令输进来。</p>
+  <input id="pw" type="password" placeholder="口令" autocomplete="off">
+  <button id="go">打开</button>
+  <div id="msg"></div>
+</div>
+<div id="stage"><iframe id="frame" allow="autoplay"></iframe></div>
+<script>
+const SALT = new Uint8Array([113,36,239,44,148,124,32,13,209,139,174,35,180,90,17,178]);
+const enc = new TextEncoder();
+
+async function deriveKey(pw){
+  const base = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt:SALT,iterations:200000,hash:'SHA-256'}, base, {name:'AES-GCM',length:256}, false, ['decrypt']);
+}
+async function decryptBlob(key, buf){
+  const iv = buf.slice(0,12);
+  const tag = buf.slice(buf.byteLength-16);
+  const ct = buf.slice(12, buf.byteLength-16);
+  // WebCrypto 的 AES-GCM 要求 ciphertext || tag 拼在一起传
+  const merged = new Uint8Array(ct.byteLength + 16);
+  merged.set(new Uint8Array(ct), 0);
+  merged.set(new Uint8Array(tag), ct.byteLength);
+  const plain = await crypto.subtle.decrypt({name:'AES-GCM',iv,tagLength:128}, key, merged);
+  return new Blob([plain]);
+}
+async function fetchEnc(key, rel){
+  const buf = await (await fetch('enc/'+rel+'.enc')).arrayBuffer();
+  return await decryptBlob(key, buf);
+}
+async function unlock(pw){
+  const msg=document.getElementById('msg'), go=document.getElementById('go');
+  go.disabled=true; msg.className=''; msg.textContent='在解了…';
+  try{
+    const key = await deriveKey(pw);
+    const pblob = await fetchEnc(key,'payload.html');
+    let html = await pblob.text();
+    const refs=[...new Set([...html.matchAll(/assets\/[^"'()\s]+/g)].map(m=>m[0]))];
+    for(const rel of refs){
+      try{
+        const blob=await fetchEnc(key,rel);
+        const url=URL.createObjectURL(blob);
+        html=html.split('"'+rel+'"').join('"'+url+'"');
+        html=html.split("'"+rel+"'").join("'"+url+"'");
+        html=html.split('url('+rel+')').join('url('+url+')');
+      }catch(e){ console.warn('skip',rel,e); }
+    }
+    document.getElementById('lock').style.display='none';
+    const stage=document.getElementById('stage'); stage.style.display='flex';
+    document.getElementById('frame').srcdoc = html;
+  }catch(e){
+    msg.className='err'; msg.textContent='口令不对。再想想。';
+    go.disabled=false;
+  }
+}
+document.getElementById('go').addEventListener('click',()=>unlock(document.getElementById('pw').value));
+document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')unlock(e.target.value);});
+</script>
+</body>
+</html>

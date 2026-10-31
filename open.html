@@ -104,8 +104,7 @@ async function unlock(raw){
     }
     document.getElementById('lock').style.display='none';
     const stage=document.getElementById('stage'); stage.style.display='flex';
-    const frame=document.getElementById('frame');
-    frame.src = URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));
+    document.getElementById('frame').srcdoc = html;
   }catch(e){
     msg.className='err'; msg.textContent='出了点问题：'+(e && e.message ? e.message : e); go.disabled=false;
   }

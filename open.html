@@ -51,9 +51,17 @@ async function decryptBlob(key, buf){
   const plain = await crypto.subtle.decrypt({name:'AES-GCM',iv,tagLength:128}, key, merged);
   return new Blob([plain]);
 }
+function mimeOf(rel){
+  const low=(rel||'').toLowerCase();
+  const map={'.mp3':'audio/mpeg','.m4a':'audio/mp4','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml','.mp4':'video/mp4','.webm':'video/webm'};
+  for(const k in map){ if(low.endsWith(k)) return map[k]; }
+  return 'application/octet-stream';
+}
 async function fetchEnc(key, rel){
   const buf = await (await fetch('enc/'+rel+'.enc'+BUST, {cache:'no-store'})).arrayBuffer();
-  return await decryptBlob(key, buf);
+  const blob = await decryptBlob(key, buf);
+  // 给 blob 标上真实 MIME，否则部分浏览器不认它是音频，会卡住或断断续续
+  return blob.type ? blob : new Blob([await blob.arrayBuffer()], {type: mimeOf(rel)});
 }
 function candidates(raw){
   const t = (raw||'').trim();
@@ -102,6 +110,7 @@ async function unlock(raw){
       done++;
       msg.className='hint'; msg.textContent='在解了… '+done+'/'+refs.length;
     }
+    html = html.replace(/preload="none"/g, 'preload="metadata"');
     document.getElementById('lock').style.display='none';
     const stage=document.getElementById('stage'); stage.style.display='flex';
     document.getElementById('frame').srcdoc = html;
